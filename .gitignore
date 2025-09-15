@@ -205,3 +205,13 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Output models
+image-classification/output
+
+# Data folder
+image-classification/data
+video-emotion-recognition/data
+
+# Pycache
+*/__pycache__

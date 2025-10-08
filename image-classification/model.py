@@ -50,17 +50,17 @@ class RCNN(nn.Module):
     def __init__(self, num_classes=10):
         super(RCNN, self).__init__()
         # Initial convolutional layer
-        self.conv1 = nn.Conv2d(3, 24, kernel_size=5, padding='same')
+        self.conv1 = nn.Conv2d(3, 48, kernel_size=5, padding='same')
         
         # Recurrent Convolutional Layers (RCL)
-        self.rconv1 = RCL_block(24, 24,  t_steps=3)
+        self.rconv1 = RCL_block(48, 48,  t_steps=3)
         self.dropout1 = nn.Dropout(0.4)
         
-        self.rconv2 = RCL_block(24, 24, t_steps=2)
+        self.rconv2 = RCL_block(48, 48, t_steps=2)
         self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2)
         self.dropout2 = nn.Dropout(0.4)
 
-        self.rconv3 = RCL_block(24, 24, t_steps=3)
+        self.rconv3 = RCL_block(48, 48, t_steps=3)
         self.dropout3 = nn.Dropout(0.5)
 
         # self.rconv4 = RCL_block(8, 8)
@@ -69,7 +69,7 @@ class RCNN(nn.Module):
         # AdaptiveAvgPool2d is a more robust way to handle the final pooling
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten()
-        self.classifier = nn.Linear(24, num_classes)
+        self.classifier = nn.Linear(48, num_classes)
 
     def forward(self, x):
         x = F.relu(self.conv1(x))

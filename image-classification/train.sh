@@ -8,7 +8,7 @@
 #SBATCH --gpus=2
 #SBATCH --mem=32gb
 #SBATCH --time=72:00:00
-#SBATCH --output=logs/rcnn_training_newmodel8_%j.log
+#SBATCH --output=logs/rcnn_training_newmodel9_%j.log
 
 #Checking GPUS
 nvidia-smi
@@ -34,7 +34,7 @@ python train.py \
     --weight-decay 1e-4 \
     --early-stop-patience 30 \
     --scheduler-patience 10 \
-    --output-folder "output/Newmodel8_Run1_200Epochs" \
+    --output-folder "output/Newmodel9_Run1_200Epochs" \
     --model-name "rcnn_svhn.pth"
 
 # Print end time

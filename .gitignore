@@ -215,3 +215,7 @@ video-emotion-recognition/data
 
 # Pycache
 */__pycache__
+
+
+# Venv
+video-emotion-recognition/.venv

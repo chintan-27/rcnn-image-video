@@ -29,28 +29,36 @@ echo "GPUs: $CUDA_VISIBLE_DEVICES"
 source .venv/bin/activate
 
 # Check if required files exist
-if [ ! -f "data/train_emotions.csv" ]; then
-    echo "ERROR: Training CSV file not found at data/train_emotions.csv"
-    exit 1
-fi
+# if [ ! -f "data/train_emotions.csv" ]; then
+#     echo "ERROR: Training CSV file not found at data/train_emotions.csv"
+#     exit 1
+# fi
+# 
+# if [ ! -f "data/val_emotions.csv" ]; then
+#     echo "ERROR: Validation CSV file not found at data/val_emotions.csv"
+#     exit 1
+# fi
+# 
+# if [ ! -d "data/videos" ]; then
+#     echo "ERROR: Video directory not found at data/videos/"
+#     exit 1
+# fi
+DST="data/ckvideo_out"
 
-if [ ! -f "data/val_emotions.csv" ]; then
-    echo "ERROR: Validation CSV file not found at data/val_emotions.csv"
-    exit 1
-fi
+[ -f "$DST/splits/train.csv" ] || { echo "Missing $DST/splits/train.csv"; exit 1; }
+[ -f "$DST/splits/val.csv" ]   || { echo "Missing $DST/splits/val.csv"; exit 1; }
+[ -d "$DST/frames/train" ]     || { echo "Missing $DST/frames/train"; exit 1; }
+[ -d "$DST/frames/val" ]       || { echo "Missing $DST/frames/val"; exit 1; }
 
-if [ ! -d "data/videos" ]; then
-    echo "ERROR: Video directory not found at data/videos/"
-    exit 1
-fi
+
 
 # Run the training script - Option B: Discrete Emotions Only
 echo "Running Video RCNN training for Discrete Emotion Classification..."
 python main.py \
     --model_type emotions_only \
-    --train_csv data/ckvideo_out/splits/train.csv \
-    --val_csv data/ckvideo_out/splits/val.csv \
-    --video_root data/ckvideo_out/ \
+    --train_csv $DST/splits/train.csv \
+    --val_csv $DST/splits/val.csv \
+    --video_root $DST \
     --batch_size 12 \
     --num_epochs 250 \
     --learning_rate 5e-5 \

@@ -26,14 +26,22 @@ echo "Job ID: $SLURM_JOB_ID"
 # Activate the pre-existing python environment
 source .venv/bin/activate
 
+DST="data/ckvideo_out"
+
+[ -f "$DST/splits/train.csv" ] || { echo "Missing $DST/splits/train.csv"; exit 1; }
+[ -f "$DST/splits/val.csv" ]   || { echo "Missing $DST/splits/val.csv"; exit 1; }
+[ -d "$DST/frames/train" ]     || { echo "Missing $DST/frames/train"; exit 1; }
+[ -d "$DST/frames/val" ]       || { echo "Missing $DST/frames/val"; exit 1; }
+
+
 # Run the training script - Efficient Model for Real-Time
 echo "Running Video RCNN Efficient training for Real-Time deployment..."
 python main.py \
     --model_type multitask \
     --efficient \
-    --train_csv data/ckvideo_out/splits/train.csv \
-    --val_csv data/ckvideo_out/splits/val.csv \
-    --video_root data/ckvideo_out/ \
+    --train_csv $DST/splits/train.csv \
+    --val_csv $DST/splits/val.csv \
+    --video_root $DST \
     --batch_size 16 \
     --num_epochs 150 \
     --learning_rate 2e-4 \

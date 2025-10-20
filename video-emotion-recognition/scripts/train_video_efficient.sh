@@ -26,7 +26,7 @@ echo "Job ID: $SLURM_JOB_ID"
 # Activate the pre-existing python environment
 source .venv/bin/activate
 
-DST="data/ckvideo_out"
+DST="/blue/ruogu.fang/chintan.acharya/RCNN/video-emotion-recognition/data/ckvideo_out"
 
 [ -f "$DST/splits/train.csv" ] || { echo "Missing $DST/splits/train.csv"; exit 1; }
 [ -f "$DST/splits/val.csv" ]   || { echo "Missing $DST/splits/val.csv"; exit 1; }

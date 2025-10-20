@@ -43,7 +43,7 @@ source .venv/bin/activate
 #     echo "ERROR: Video directory not found at data/videos/"
 #     exit 1
 # Fi
-DST="data/ckvideo_out"
+DST="/blue/ruogu.fang/chintan.acharya/RCNN/video-emotion-recognition/data/ckvideo_out"
 
 [ -f "$DST/splits/train.csv" ] || { echo "Missing $DST/splits/train.csv"; exit 1; }
 [ -f "$DST/splits/val.csv" ]   || { echo "Missing $DST/splits/val.csv"; exit 1; }

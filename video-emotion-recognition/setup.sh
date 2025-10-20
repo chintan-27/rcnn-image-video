@@ -1,80 +1,123 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "Setting up Video RCNN training environment..."
 echo "============================================="
 
-# Make all scripts executable
+# ---- Config: set your restructured dataset root here (ABSOLUTE PATH RECOMMENDED) ----
+DST="${DST:-/blue/ruogu.fang/chintan.acharya/RCNN/video-emotion-recognition/data/ckvideo_out}"   # or export DST before running:  export DST=/path/to/ckvideo_out
+echo "Dataset root (DST) = $DST"
+
+# ---- Make training scripts executable (they live at repo root in your codebase) ----
 echo "Making scripts executable..."
-chmod +x submit_all_video.sh
-chmod +x scripts/train_video_va_only.sh
-chmod +x scripts/train_video_emotions_only.sh  
-chmod +x scripts/train_video_multitask.sh
-chmod +x scripts/train_video_efficient.sh
+chmod +x submit_all_video.sh || true
+chmod +x scripts/train_video_va_only.sh || true
+chmod +x scripts/train_video_emotions_only.sh || true
+chmod +x scripts/train_video_multitask.sh || true
+chmod +x scripts/train_video_efficient.sh || true
 
-# Create necessary directories
+# (If you actually keep them under scripts/, keep these as well)
+[ -f scripts/train_video_va_only.sh ] && chmod +x scripts/train_video_va_only.sh || true
+[ -f scripts/train_video_emotions_only.sh ] && chmod +x scripts/train_video_emotions_only.sh || true
+[ -f scripts/train_video_multitask.sh ] && chmod +x scripts/train_video_multitask.sh || true
+[ -f scripts/train_video_efficient.sh ] && chmod +x scripts/train_video_efficient.sh || true
+
+# ---- Create run dirs ----
 echo "Creating directories..."
-mkdir -p logs
-mkdir -p checkpoints
+mkdir -p logs checkpoints
 
-# Make existing scripts executable if they exist
+# ---- Optional helpers ----
 [ -f "inspect_ck_data.py" ] && chmod +x inspect_ck_data.py
 [ -f "data_inspect.py" ] && chmod +x data_inspect.py
 
-# Basic environment check
+echo ""
 echo "Checking environment..."
 echo "----------------------"
 
-# Check Python environment
-if command -v python &> /dev/null; then
-    echo "FOUND: Python $(python --version 2>&1)"
+# Python
+if command -v python &>/dev/null; then
+  echo "FOUND: $(python --version 2>&1)"
 else
-    echo "ERROR: Python not found"
+  echo "ERROR: Python not found"
 fi
 
-# Check virtual environment
+# VENV (optional)
 if [ -f ".venv/bin/activate" ]; then
-    echo "FOUND: Virtual environment at .venv/"
-    source .venv/bin/activate
-    echo "ACTIVATED: Virtual environment"
+  echo "FOUND: .venv/ — activating"
+  # shellcheck disable=SC1091
+  source .venv/bin/activate
 else
-    echo "WARNING: No virtual environment found at .venv/"
+  echo "WARNING: No .venv/ found"
 fi
 
-# Check key Python packages
-echo "Checking packages..."
-python -c "import torch; print('FOUND: PyTorch', torch.__version__)" 2>/dev/null || echo "ERROR: PyTorch not available"
-python -c "import cv2; print('FOUND: OpenCV', cv2.__version__)" 2>/dev/null || echo "ERROR: OpenCV not available"  
-python -c "import pandas; print('FOUND: Pandas', pandas.__version__)" 2>/dev/null || echo "ERROR: Pandas not available"
+echo "Inspecting data"
+python data_inspect.py
 
-# Check CUDA if available
-python -c "import torch; print('CUDA available:', torch.cuda.is_available())" 2>/dev/null || echo "CUDA check failed"
+# Key packages
+echo "Checking packages..."
+python - <<'PY' 2>/dev/null || echo "ERROR: package check failed"
+import importlib, sys
+for m in ("torch","cv2","pandas"):
+    try:
+        v = importlib.import_module(m)
+        print(f"FOUND: {m} {getattr(v,'__version__','')}".strip())
+    except Exception as e:
+        print(f"ERROR: {m} not available: {e}", file=sys.stderr)
+import torch
+print("CUDA available:", torch.cuda.is_available())
+PY
 
 echo ""
 echo "Checking project files..."
 echo "------------------------"
 
-# Check critical files
-[ -f "main.py" ] && echo "FOUND: main.py" || echo "ERROR: main.py missing"
-[ -f "data_utils/dataset.py" ] && echo "FOUND: data_utils/dataset.py" || echo "ERROR: data_utils/dataset.py missing"
-[ -f "models/video_rcnn.py" ] && echo "FOUND: models/video_rcnn.py" || echo "ERROR: models/video_rcnn.py missing"
-[ -f "training/trainer.py" ] && echo "FOUND: training/trainer.py" || echo "ERROR: training/trainer.py missing"
+# Your repo uses these file names/locations:
+[ -f "main.py" ]            && echo "FOUND: main.py"            || echo "ERROR: main.py missing"
+[ -f "data_utils/dataset.py" ]         && echo "FOUND: dataset.py"         || echo "ERROR: dataset.py missing"
+[ -f "models/video_rcnn.py" ]      && echo "FOUND: video_rcnn.py"      || echo "ERROR: video_rcnn.py missing"
+[ -f "training/trainer.py" ]         && echo "FOUND: trainer.py"         || echo "ERROR: trainer.py missing"
+[ -f "training/metrics.py" ]         && echo "FOUND: metrics.py"         || echo "WARN: metrics.py missing (optional)"
+[ -f "utils/helpers.py" ]         && echo "FOUND: helpers.py"         || echo "WARN: helpers.py missing (optional)"
 
-# Check data files
-[ -f "data/ckvideo/ckvideo_middleframe_train.csv" ] && echo "FOUND: Training CSV" || echo "ERROR: Training CSV missing"
-[ -f "data/ckvideo/ckvideo_middleframe_val.csv" ]   && echo "FOUND: Validation CSV" || echo "ERROR: Validation CSV missing"
-[ -d "data/ckvideo/ckvideo_middleframe_train" ]     && echo "FOUND: Training videos" || echo "ERROR: Training videos missing"
-[ -d "data/ckvideo/ckvideo_middleframe_val" ]       && echo "FOUND: Validation videos" || echo "ERROR: Validation videos missing"
+# If you instead moved them under subfolders, also check those (non-fatal):
+[ -f "data_utils/dataset.py" ]            && echo "ALT FOUND: data/dataset.py"            || true
+[ -f "models/video_rcnn.py" ]       && echo "ALT FOUND: models/video_rcnn.py"       || true
+[ -f "training/trainer.py" ]        && echo "ALT FOUND: training/trainer.py"        || true
+
+echo ""
+echo "Checking restructured dataset (ckvideo_out)..."
+echo "----------------------------------------------"
+# New layout checks
+[ -f "$DST/splits/train.csv" ] || { echo "ERROR: Missing $DST/splits/train.csv"; exit 1; }
+[ -f "$DST/splits/val.csv" ]   || { echo "ERROR: Missing $DST/splits/val.csv";   exit 1; }
+[ -f "$DST/splits/test.csv" ]  && echo "FOUND: $DST/splits/test.csv" || echo "WARN: test.csv not present (ok if not needed)"
+
+[ -d "$DST/frames/train" ] || { echo "ERROR: Missing $DST/frames/train"; exit 1; }
+[ -d "$DST/frames/val" ]   || { echo "ERROR: Missing $DST/frames/val";   exit 1; }
+[ -d "$DST/frames/test" ]  && echo "FOUND: $DST/frames/test" || echo "WARN: frames/test not present (ok if not needed)"
+
+[ -f "$DST/metadata/manifest.json" ] && echo "FOUND: manifest.json" || echo "WARN: manifest.json missing"
+[ -f "$DST/metadata/CowenKeltnerEmotionalVideos.csv" ] && echo "FOUND: CowenKeltnerEmotionalVideos.csv" || echo "WARN: emotions CSV missing (required for emotions_only/multitask)"
+[ -f "$DST/metadata/Header.txt" ] && echo "FOUND: Header.txt" || echo "INFO: Header.txt not required post-restructure"
+
+# Quick sanity counts (non-fatal)
+echo "Counting sample items..."
+for s in train val; do
+  vids=$(find "$DST/frames/$s" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+  echo "  $s videos: $vids"
+done
 
 echo ""
 echo "Setup complete!"
 echo "==============="
 echo ""
 echo "Next steps:"
-echo "1. Check your data: python inspect_ck_data.py"
-echo "2. Submit training jobs: ./submit_all_video.sh"
+echo "1) Export your DST if not set yet:  export DST=$DST"
+echo "2) Submit training jobs, e.g.:"
+echo "   sbatch train_video_va_only.sh"
+echo "   sbatch train_video_multitask.sh"
 echo ""
-echo "Individual training scripts:"
-echo "- sbatch scripts/train_video_va_only.sh"
-echo "- sbatch scripts/train_video_emotions_only.sh" 
-echo "- sbatch scripts/train_video_multitask.sh"
-echo "- sbatch scripts/train_video_efficient.sh"
+echo "If your job scripts still reference old paths, update:"
+echo "  --train_csv \"$DST/splits/train.csv\""
+echo "  --val_csv   \"$DST/splits/val.csv\""
+echo "  --video_root \"$DST\""

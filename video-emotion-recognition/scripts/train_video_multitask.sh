@@ -51,7 +51,7 @@ python -c "import torch; print(f'GPU count: {torch.cuda.device_count()}')"
 #     echo "ERROR: Video directory not found at data/videos/"
 #     exit 1
 # fi
-DST="/blue/ruogu.fang/chintan.acharya/RCNN/video-emotion-recognition/data/ckvideo"
+DST="/blue/ruogu.fang/chintan.acharya/RCNN/video-emotion-recognition/data/ckvideo_out"
 
 [ -f "$DST/splits/train.csv" ] || { echo "Missing $DST/splits/train.csv"; exit 1; }
 [ -f "$DST/splits/val.csv" ]   || { echo "Missing $DST/splits/val.csv"; exit 1; }
@@ -65,7 +65,7 @@ python main.py \
     --model_type multitask \
     --train_csv $DST/splits/train.csv \
     --val_csv $DST/splits/val.csv \
-    --video_root $DST \ 
+    --video_root $DST \
     --batch_size 8 \
     --num_epochs 300 \
     --learning_rate 1e-4 \

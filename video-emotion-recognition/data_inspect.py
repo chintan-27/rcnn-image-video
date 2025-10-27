@@ -1,3 +1,4 @@
+import argparse
 import os
 import pandas as pd
 from pathlib import Path
@@ -91,4 +92,15 @@ def inspect_ck_dataset(root="data/ckvideo_out"):
     print("\nInspection complete.")
 
 if __name__ == "__main__":
-    inspect_ck_dataset()
+    parser = argparse.ArgumentParser(
+        description="Inspect the restructured Cowen-Keltner (CK) video dataset."
+    )
+    parser.add_argument(
+        "--root",
+        type=str,
+        default="data/ckvideo_out",
+        help="Path to the CK dataset root (default: data/ckvideo_out)"
+    )
+
+    args = parser.parse_args()
+    inspect_ck_dataset(root=args.root)

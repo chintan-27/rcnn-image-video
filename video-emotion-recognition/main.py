@@ -144,7 +144,7 @@ def create_scheduler(optimizer, args):
     if args.scheduler_type == 'plateau':
         return ReduceLROnPlateau(
             optimizer, mode='min', factor=0.5, 
-            patience=5, verbose=True, min_lr=1e-7
+            patience=5, min_lr=1e-7
         )
     elif args.scheduler_type == 'step':
         return StepLR(optimizer, step_size=20, gamma=0.5)

@@ -1,38 +1,52 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
 echo "Submitting all Video RCNN training jobs..."
 echo "================================================"
 
+# Dataset root (absolute path recommended). Override by: export DST=/abs/path/to/data/ckvideo_out
+DST="${DST:-$(readlink -f data/ckvideo_out)}"
+echo "Using dataset root: $DST"
+
 # Create necessary directories
-mkdir -p logs
-mkdir -p checkpoints
+mkdir -p logs checkpoints
 
 echo "Checking CK Video dataset..."
-python data_inspect.py
-
-echo ""
-read -p "Does the data look correct? Continue with training? (y/N): " -n 1 -r
-echo
-if [[ ! $REPLY =~ ^[Yy]$ ]]; then  # FIXED: Added $ before REPLY
-    echo "Aborted by user."
-    exit 1
+# If your inspector accepts --root, pass DST; otherwise it will use its default.
+if python -c 'import sys; import data_inspect as m; sys.exit(0)'; then
+  python data_inspect.py
+else
+  python data_inspect.py  # keep as-is if your script has no CLI
 fi
 
-# Submit jobs and capture job IDs
+echo ""
+# Confirm only if running interactively
+if [ -t 0 ]; then
+  read -p "Does the data look correct? Continue with training? (y/N): " -n 1 -r
+  echo
+  if [[ ! ${REPLY:-N} =~ ^[Yy]$ ]]; then
+      echo "Aborted by user."
+      exit 1
+  fi
+else
+  echo "Non-interactive shell detected; proceeding without prompt."
+fi
+
+# Submit jobs and capture job IDs (export DST to jobs)
 echo "Submitting Option A: Valence/Arousal Only..."
-JOB_VA=$(sbatch --parsable scripts/train_video_va_only.sh)  # FIXED: Added scripts/ path
+JOB_VA=$(sbatch --export=ALL,DST="$DST" --parsable scripts/train_video_va_only.sh)
 echo "  Job ID: $JOB_VA"
 
 echo "Submitting Option B: Discrete Emotions Only..."
-JOB_EMOTIONS=$(sbatch --parsable scripts/train_video_emotions_only.sh)  # FIXED: Added scripts/ path
+JOB_EMOTIONS=$(sbatch --export=ALL,DST="$DST" --parsable scripts/train_video_emotions_only.sh)
 echo "  Job ID: $JOB_EMOTIONS"
 
 echo "Submitting Option C: Multi-Task Learning..."
-JOB_MULTITASK=$(sbatch --parsable scripts/train_video_multitask.sh)  # FIXED: Added scripts/ path
+JOB_MULTITASK=$(sbatch --export=ALL,DST="$DST" --parsable scripts/train_video_multitask.sh)
 echo "  Job ID: $JOB_MULTITASK"
 
 echo "Submitting Efficient Model..."
-JOB_EFFICIENT=$(sbatch --parsable scripts/train_video_efficient.sh)  # FIXED: Added scripts/ path
+JOB_EFFICIENT=$(sbatch --export=ALL,DST="$DST" --parsable scripts/train_video_efficient.sh)
 echo "  Job ID: $JOB_EFFICIENT"
 
 echo ""
@@ -40,36 +54,32 @@ echo "All jobs submitted successfully!"
 echo "================================================"
 echo "Job Summary:"
 echo "  VA Only:     $JOB_VA"
-echo "  Emotions:    $JOB_EMOTIONS" 
+echo "  Emotions:    $JOB_EMOTIONS"
 echo "  Multi-Task:  $JOB_MULTITASK"
 echo "  Efficient:   $JOB_EFFICIENT"
 echo ""
 
 # Create monitoring script
 cat > monitor_jobs.sh << EOF
-#!/bin/bash
-echo "Video RCNN Training Job Status:"
+#!/usr/bin/env bash
+set -euo pipefail
+echo "Video RCNN Training Job Status"
 echo "=================================="
-squeue -u \$USER --format="%.10i %.15j %.8t %.10M %.6D %R" | grep "video_rcnn"
-echo ""
-echo "Resource Usage:"
-echo "=================="
-sacct -j $JOB_VA,$JOB_EMOTIONS,$JOB_MULTITASK,$JOB_EFFICIENT --format=JobID,JobName,State,MaxRSS,Elapsed,CPUTime | head -20
-EOF
+# Show all your jobs; adjust the pattern if your #SBATCH -J names differ
+squeue -u "\$USER" --format="%.10i %.20j %.8t %.10M %.6D %R" | sed -n '1,200p'
 
+echo ""
+echo "Resource Usage (sacct):"
+echo "========================"
+# sacct may not have data until jobs start/finish
+sacct -j ${JOB_VA},${JOB_EMOTIONS},${JOB_MULTITASK},${JOB_EFFICIENT} --format=JobID,JobName%24,State,Elapsed,MaxRSS,MaxVMSize,AllocTRES | sed -n '1,200p'
+EOF
 chmod +x monitor_jobs.sh
 
 echo "Monitor jobs with: ./monitor_jobs.sh"
-echo "View logs in: logs/ directory"
-echo "Checkpoints will be saved in: checkpoints/ directory"
+echo "View logs in: logs/ (SLURM outputs are named via %x-%j.out by your scripts)"
+echo "Checkpoints will be saved in: checkpoints/"
 echo ""
 echo "Useful commands:"
-echo "  squeue -u \$USER                    # Check job queue"
-echo "  scancel <job_id>                   # Cancel a job"  
-echo "  tail -f logs/video_rcnn_*_*.log    # Monitor training progress"
-echo ""
-echo "Expected training times:"
-echo "  VA Only:     ~24-48 hours"
-echo "  Emotions:    ~36-60 hours" 
-echo "  Multi-Task:  ~48-96 hours"
-echo "  Efficient:   ~12-24 hours"
+echo "  squeue -u \$USER"
+echo "  scancel <job_id>"

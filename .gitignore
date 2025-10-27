@@ -219,3 +219,10 @@ video-emotion-recognition/data
 
 # Venv
 video-emotion-recognition/.venv
+video-emotion-recognition/checkpoints
+
+# Logs and monitor
+*/logs
+*/monitor-jobs.sh
+*/checkpoints
+

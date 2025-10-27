@@ -58,7 +58,7 @@ python main.py \
     --model_type va_only \
     --train_csv $DST/splits/train.csv \
     --val_csv $DST/splits/val.csv \
-    --video_root $DST \ 
+    --video_root $DST \
     --batch_size 16 \
     --num_epochs 200 \
     --learning_rate 1e-4 \

@@ -24,7 +24,7 @@ class VideoRCNN_Base(nn.Module):
         self.dropout1 = nn.Dropout3d(0.1)
 
         self.rconv2 = RCL_Block(96, 128, kernel_size=(3,3,3), t_steps=3)
-        self.pool1 = nn.MaxPool3d(kernel_size=(2,2,2), stride=(2,2,2))
+        self.pool1 = nn.MaxPool3d(kernel_size=(1,2,2), stride=(1,2,2))
         self.dropout2 = nn.Dropout3d(0.2)
 
         self.rconv3 = RCL_Block(128, 192, kernel_size=(3,3,3), t_steps=3)

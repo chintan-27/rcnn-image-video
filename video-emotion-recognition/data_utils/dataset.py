@@ -26,6 +26,8 @@ class CKVideoDataset(Dataset):
         training=True,
         model_type='multitask',
         top_k_emotions=50,
+        emotion_mapping=None,
+        emotion_names=None
     ):
         """
         Args:
@@ -54,6 +56,8 @@ class CKVideoDataset(Dataset):
         self.num_frames = num_frames
         self.training = training
         self.model_type = model_type
+        self.emotion_mapping_override = emotion_mapping
+        self.emotion_names_override   = emotion_names
 
         # ---- Determine split from CSV filename ----
         csv_name = os.path.basename(csv_file).lower()
@@ -217,20 +221,21 @@ class CKVideoDataset(Dataset):
         # Try a few times to avoid bad samples
         for _ in range(3):
             row = self.data.iloc[idx]
-
+    
             # Normalize to base (video) id so we read the clip folder
             raw_id = str(row.get('id', row.get('ID', row.get('video_id', idx))))
             video_id = raw_id.split('_')[0]  # "2177_001" -> "2177"
-
+    
             try:
                 # Load frames and apply transforms
                 frames_np, chosen_keys = self._load_video_from_images(video_id)
                 video_tensor = self.transforms(frames_np)  # (T, C, H, W)
-
+    
                 # Build framewise VA sequences aligned to chosen_keys
                 T = video_tensor.shape[0]
                 v_seq = np.zeros((T,), dtype=np.float32)
                 a_seq = np.zeros((T,), dtype=np.float32)
+    
                 if video_id in self.frame_va:
                     for i, k in enumerate(chosen_keys[:T]):
                         if k in self.frame_va[video_id]:
@@ -241,31 +246,40 @@ class CKVideoDataset(Dataset):
                 else:
                     v_seq[:] = float(row.get('valence', 0.0))
                     a_seq[:] = float(row.get('arousal', 0.0))
-
+    
+                # Normalize to model ranges
+                v_seq = (v_seq - 5.0) / 4.0   # 1..9 -> -1..1
+                a_seq = a_seq / 9.0           # 0..9 -> 0..1
+                v_seq = np.clip(v_seq, -1.0, 1.0)
+                a_seq = np.clip(a_seq,  0.0, 1.0)
+    
+                # Build targets
                 if self.model_type == 'va_only':
                     targets = {
                         'valence': torch.from_numpy(v_seq),   # (T,)
                         'arousal': torch.from_numpy(a_seq),   # (T,)
                     }
                 elif self.model_type == 'emotions_only':
-                    targets = {'emotions': torch.tensor(self._get_emotion_label(row), dtype=torch.long)}
+                    targets = {
+                        'emotions': torch.tensor(self._get_emotion_label(row), dtype=torch.long)
+                    }
                 else:  # multitask
                     targets = {
                         'valence': torch.from_numpy(v_seq),
                         'arousal': torch.from_numpy(a_seq),
                         'emotions': torch.tensor(self._get_emotion_label(row), dtype=torch.long),
                     }
-
+    
                 return video_tensor, targets
-
+    
             except Exception as e:
                 # On failure, move to next row
                 print(f"Error loading video {video_id}: {e}")
                 idx = (idx + 1) % len(self.data)
-
+    
         # If repeated failures occur, raise so the calling code can surface the issue
         raise RuntimeError("Failed to load a valid sample after several attempts.")
-
+    
 
 def create_ck_data_loaders(
     train_csv,
@@ -281,55 +295,41 @@ def create_ck_data_loaders(
     Create train and validation data loaders for CK dataset (restructured)
     """
     train_dataset = CKVideoDataset(
-        train_csv,
-        video_root,
-        training=True,
-        model_type=model_type,
-        **kwargs,
+        train_csv, video_root, training=True, model_type=model_type, **kwargs
     )
 
+    # Extract mapping from train
+    emotion_mapping = getattr(train_dataset, 'emotion_to_idx', None)
+    emotion_names = None
+    if emotion_mapping:
+        # stable idx->name list
+        emotion_names = [e for e, i in sorted(emotion_mapping.items(), key=lambda x: x[1])]
+
+    # VAL uses the SAME mapping
     val_dataset = CKVideoDataset(
-        val_csv,
-        video_root,
-        training=False,
-        model_type=model_type,
-        **kwargs,
+        val_csv, video_root, training=False, model_type=model_type,
+        emotion_mapping=emotion_mapping, emotion_names=emotion_names, **kwargs
     )
 
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=True,
-        drop_last=True,
-    )
-
-    val_loader = DataLoader(
-        val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=True,
-    )
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True,
+                              num_workers=num_workers, pin_memory=True, drop_last=True)
+    val_loader   = DataLoader(val_dataset, batch_size=batch_size, shuffle=False,
+                              num_workers=num_workers, pin_memory=True)
 
     dataset_info = {
-        'num_emotions': len(train_dataset.top_emotions)
-        if hasattr(train_dataset, 'top_emotions')
-        else 0,
-        'emotion_mapping': getattr(train_dataset, 'emotion_to_idx', {}),
+        'num_emotions': len(getattr(train_dataset, 'top_emotions', [])),
+        'emotion_mapping': emotion_mapping or {},
+        'emotion_names': emotion_names or [],
         'train_size': len(train_dataset),
         'val_size': len(val_dataset),
     }
 
-    # Persist mapping (useful for metrics/visualization)
     if experiment_dir:
         os.makedirs(experiment_dir, exist_ok=True)
         with open(os.path.join(experiment_dir, 'emotion_mapping.json'), 'w') as f:
             json.dump(dataset_info['emotion_mapping'], f, indent=2)
 
     return train_loader, val_loader, dataset_info
-
 
 # Backwards-compat alias
 create_data_loaders = create_ck_data_loaders

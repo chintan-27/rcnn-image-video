@@ -18,7 +18,7 @@ source .venv/bin/activate
 
 # Run the testing script
 echo "Running test.py on the trained model..."
-python test.py --model-path rcnn_svhn.pth --device cuda --data-folder "output/Run3_200Epochs"
+python test.py --model-path rcnn_svhn_best_loss.pth --device cuda --data-folder "output/Newmodel9_Run1_200Epochs"
 
 # Print end time
 date

@@ -12,21 +12,40 @@ def test(args):
     """
     # Setup device
     device = torch.device("cuda" if torch.cuda.is_available() and args.device == 'cuda' else "cpu")
+    
+    # Safer output folder name from the model filename
+    model_basename = os.path.splitext(os.path.basename(args.model_path))[0]
+    output_folder = os.path.join(args.data_folder, model_basename)
+    os.makedirs(output_folder, exist_ok=True)
+    
     print(f"Using device: {device}")
-
+    
     # Load test data
     _, test_loader = get_data_loaders(args.batch_size)
-
-    # Initialize model and load trained weights
+    
+    # Initialize model
     model = RCNN(num_classes=10).to(device)
+    
+    # Load checkpoint or raw state_dict robustly
     try:
         model_path = os.path.join(args.data_folder, args.model_path)
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        ckpt = torch.load(model_path, map_location=device)
+    
+        # Accept either a checkpoint dict or a bare state_dict
+        if isinstance(ckpt, dict) and "model_state" in ckpt:
+            state = ckpt["model_state"]
+        else:
+            state = ckpt
+    
+        # Strip 'module.' if saved from DataParallel
+        if any(k.startswith("module.") for k in state.keys()):
+            state = {k.replace("module.", "", 1): v for k, v in state.items()}
+    
+        model.load_state_dict(state, strict=True)
     except FileNotFoundError:
-        print(f"Error: Model file not found at {args.model_path}")
-        print("Please run train.py first to generate the model file.")
-        return
-        
+        print(f"Error: Model file not found at {model_path}")
+        print("Please run train.py first or provide the correct --model-path.")
+        return 
     model.eval()
 
     correct_test = 0
@@ -47,7 +66,7 @@ def test(args):
 
     # Plot some sample predictions
     print("Generating sample prediction plot...")
-    plot_predictions(model, test_loader, device, args.data_folder)
+    plot_predictions(model, test_loader, device, output_folder)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Test a trained RCNN model on the SVHN dataset.")
